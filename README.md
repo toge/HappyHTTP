@@ -9,7 +9,6 @@ Contents
 --------
 
 -   [Overview](#overview)
--   [Download](#download)
 -   [Usage](#usage)
 -   [Example](#example)
 -   [TODO](#todo)
@@ -32,14 +31,6 @@ processing responses.
 -   Licensed under the [zlib/libpng
     license](http://www.opensource.org/licenses/zlib-license.php).
 -   Cross-platform (Linux, OSX, Windows)
-
-* * * * *
-
-Download
---------
-
-Latest Version is 0.1:
-[happyhttp-0.1.tar.gz](http://www.scumways.com/happyhttp/happyhttp-0.1.tar.gz)
 
 * * * * *
 
@@ -207,8 +198,6 @@ TODO
 -   Proxy support
 -   Add helper functions for URL wrangling
 -   Improve error text (and maybe some more exception types?)
--   HTTP 0.9 support
--   Improved documentation and examples
 
 * * * * *
 
