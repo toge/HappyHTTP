@@ -12,7 +12,8 @@ LDFLAGS += -lws2_32
 EXE = test.exe
 endif
 
-OBJS = $(patsubst %.cpp,%.o,$(SRCS) )
+# OBJS = $(patsubst %.cpp,%.o,$(SRCS) )
+OBJS = test.cpp
 
 
 # -------------
@@ -35,6 +36,3 @@ depend:
 ifeq ($(wildcard .depend),.depend)
 include .depend
 endif
-
-
-

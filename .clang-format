@@ -1,0 +1,45 @@
+BasedOnStyle: LLVM
+Language: Cpp
+
+IndentWidth: 4
+ColumnLimit: 100
+
+# int* count
+PointerAlignment: Left
+
+AccessModifierOffset: -4
+
+# void func(arg1,
+#           arg2);
+AlignAfterOpenBracket: Align
+AlignEscapedNewlinesLeft: true
+
+# int   aaa = 5;
+# float b   = 0.1f;
+AlignConsecutiveDeclarations: true
+AlignConsecutiveAssignments: true
+
+# int aaa = 5 +
+#           8;
+AlignOperands: true
+
+AllowShortFunctionsOnASingleLine: Inline
+AlwaysBreakTemplateDeclarations: true
+AlignTrailingComments: true
+
+BinPackArguments: true
+BinPackParameters: true
+BreakBeforeBraces: Attach
+BreakConstructorInitializersBeforeComma: false
+ConstructorInitializerAllOnOneLineOrOnePerLine: true
+
+Cpp11BracedListStyle: true
+
+MaxEmptyLinesToKeep: 10
+
+NamespaceIndentation: Inner
+
+ReflowComments: true
+
+Standard: Cpp11
+SpacesBeforeTrailingComments: 2
