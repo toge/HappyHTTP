@@ -1,7 +1,6 @@
 #include <cstdio>
 #include <cstring>
 
-#include "happyhttp.cpp"
 #include "happyhttp.h"
 
 #ifdef WIN32
@@ -10,17 +9,17 @@
 
 int receiveCount = 0;
 
-void OnBegin(const happyhttp::Response* r, void* userdata) {
+void OnBegin(const happyhttp::Response* r) {
     printf("BEGIN (%d %s)\n", r->getstatus(), r->getreason());
     receiveCount = 0;
 }
 
-void OnData(const happyhttp::Response* r, void* userdata, const unsigned char* data, int n) {
+void OnData(const happyhttp::Response* r, const unsigned char* data, int n) {
     fwrite(data, 1, n, stdout);
     receiveCount += n;
 }
 
-void OnComplete(const happyhttp::Response* r, void* userdata) {
+void OnComplete(const happyhttp::Response* r) {
     printf("COMPLETE (%d bytes)\n", receiveCount);
 }
 
@@ -30,7 +29,7 @@ void Test1() {
     puts("-----------------Test1------------------------");
     // simple simple GET
     happyhttp::Connection conn("scumways.com", 80);
-    conn.setcallbacks(OnBegin, OnData, OnComplete, 0);
+    conn.setcallbacks(OnBegin, OnData, OnComplete);
 
     conn.request("GET", "/happyhttp/test.php", 0, 0, 0);
 
@@ -51,7 +50,7 @@ void Test2() {
     const char* body = "answer=42&name=Bubba";
 
     happyhttp::Connection conn("scumways.com", 80);
-    conn.setcallbacks(OnBegin, OnData, OnComplete, 0);
+    conn.setcallbacks(OnBegin, OnData, OnComplete);
     conn.request("POST", "/happyhttp/test.php", headers, (const unsigned char*)body, strlen(body));
 
     while (conn.outstanding())
@@ -66,7 +65,7 @@ void Test3() {
     int         l      = strlen(params);
 
     happyhttp::Connection conn("scumways.com", 80);
-    conn.setcallbacks(OnBegin, OnData, OnComplete, 0);
+    conn.setcallbacks(OnBegin, OnData, OnComplete);
 
     conn.putrequest("POST", "/happyhttp/test.php");
     conn.putheader("Connection", "close");

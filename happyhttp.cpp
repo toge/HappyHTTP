@@ -23,9 +23,9 @@
  * 3. This notice may not be removed or altered from any source distribution.
  *
  */
+#ifndef HAPPYHTTP_HAPPYHTP_CPP_
+#define HAPPYHTTP_HAPPYHTP_CPP_
 
-
-#include "happyhttp.h"
 
 #ifndef _WIN32
 #include <arpa/inet.h>
@@ -39,8 +39,6 @@
 #define vsnprintf _vsnprintf
 #endif
 
-#include <assert.h>
-#include <cstdarg>
 #include <cstdio>
 #include <cstring>
 
@@ -54,11 +52,10 @@
 #endif
 
 
+#include "happyhttp.h"
 
 
 namespace happyhttp {
-
-using namespace std;
 
 #ifdef WIN32
 const char* GetWinsockErrorString(int err);
@@ -73,7 +70,6 @@ const char* GetWinsockErrorString(int err);
 
 void BailOnSocketError(const char* context) {
 #ifdef WIN32
-
     int         e   = WSAGetLastError();
     const char* msg = GetWinsockErrorString(e);
 #else
@@ -190,7 +186,7 @@ const char* GetWinsockErrorString(int err) {
     }
 
     return "unknown";
-};
+}
 
 #endif  // WIN32
 
@@ -224,7 +220,7 @@ struct in_addr* atoaddr(const char* address) {
 
     // First try nnn.nnn.nnn.nnn form
     saddr.s_addr = inet_addr(address);
-    if (saddr.s_addr != -1)
+    if (saddr.s_addr != static_cast<decltype(saddr.s_addr)>(-1))
         return &saddr;
 
     host = gethostbyname(address);
@@ -240,26 +236,6 @@ struct in_addr* atoaddr(const char* address) {
 
 
 
-//---------------------------------------------------------------------
-//
-// Exception class
-//
-//---------------------------------------------------------------------
-
-
-Wobbly::Wobbly(const char* fmt, ...) {
-    va_list ap;
-    va_start(ap, fmt);
-    int n = vsnprintf(m_Message, MAXLEN, fmt, ap);
-    va_end(ap);
-    if (n == MAXLEN)
-        m_Message[MAXLEN - 1] = '\0';
-}
-
-
-
-
-
 
 
 
@@ -268,24 +244,7 @@ Wobbly::Wobbly(const char* fmt, ...) {
 // Connection
 //
 //---------------------------------------------------------------------
-Connection::Connection(const char* host, int port)
-    : m_ResponseBeginCB(0),
-      m_ResponseDataCB(0),
-      m_ResponseCompleteCB(0),
-      m_UserData(0),
-      m_State(IDLE),
-      m_Host(host),
-      m_Port(port),
-      m_Sock(-1) {}
 
-
-void Connection::setcallbacks(ResponseBegin_CB begincb, ResponseData_CB datacb,
-                              ResponseComplete_CB completecb, void* userdata) {
-    m_ResponseBeginCB    = begincb;
-    m_ResponseDataCB     = datacb;
-    m_ResponseCompleteCB = completecb;
-    m_UserData           = userdata;
-}
 
 
 void Connection::connect() {
@@ -294,7 +253,7 @@ void Connection::connect() {
         throw Wobbly("Invalid network address");
 
     sockaddr_in address;
-    memset((char*)&address, 0, sizeof(address));
+    std::memset(reinterpret_cast<char*>(&address), 0, sizeof(address));
     address.sin_family      = AF_INET;
     address.sin_port        = htons(m_Port);
     address.sin_addr.s_addr = addr->s_addr;
@@ -302,8 +261,6 @@ void Connection::connect() {
     m_Sock = socket(AF_INET, SOCK_STREAM, 0);
     if (m_Sock < 0)
         BailOnSocketError("socket()");
-
-    //	printf("Connecting to %s on port %d.\n",inet_ntoa(*addr), port);
 
     if (::connect(m_Sock, (sockaddr const*)&address, sizeof(address)) < 0)
         BailOnSocketError("connect()");
@@ -327,18 +284,13 @@ void Connection::close() {
     }
 }
 
-
-Connection::~Connection() {
-    close();
-}
-
 void Connection::request(const char* method, const char* url, const char* headers[],
                          const unsigned char* body, int bodysize) {
 
     bool gotcontentlength = false;  // already in headers?
 
     // check headers for content-length
-    // TODO: check for "Host" and "Accept-Encoding" too
+    // TODO(toge): check for "Host" and "Accept-Encoding" too
     // and avoid adding them ourselves in putrequest()
     if (headers) {
         const char** h = headers;
@@ -381,7 +333,7 @@ void Connection::putrequest(const char* method, const char* url) {
     m_State = REQ_STARTED;
 
     char req[512];
-    sprintf(req, "%s %s HTTP/1.1", method, url);
+    std::snprintf(req, sizeof(req), "%s %s HTTP/1.1", method, url);
     m_Buffer.push_back(req);
 
     putheader("Host", m_Host.c_str());  // required for HTTP1.1
@@ -395,18 +347,6 @@ void Connection::putrequest(const char* method, const char* url) {
 }
 
 
-void Connection::putheader(const char* header, const char* value) {
-    if (m_State != REQ_STARTED)
-        throw Wobbly("putheader() failed");
-    m_Buffer.push_back(string(header) + ": " + string(value));
-}
-
-void Connection::putheader(const char* header, int numericvalue) {
-    char buf[32];
-    sprintf(buf, "%d", numericvalue);
-    putheader(header, buf);
-}
-
 void Connection::endheaders() {
     if (m_State != REQ_STARTED)
         throw Wobbly("Cannot send header");
@@ -414,21 +354,20 @@ void Connection::endheaders() {
 
     m_Buffer.push_back("");
 
-    string                         msg;
-    vector<string>::const_iterator it;
+    std::string msg;
+
+    std::vector<std::string>::const_iterator it;
     for (it = m_Buffer.begin(); it != m_Buffer.end(); ++it)
         msg += (*it) + "\r\n";
 
     m_Buffer.clear();
 
-    //	printf( "%s", msg.c_str() );
     send((const unsigned char*)msg.c_str(), msg.size());
 }
 
 
 
 void Connection::send(const unsigned char* buf, int numbytes) {
-    //	fwrite( buf, 1,numbytes, stdout );
 
     if (m_Sock < 0)
         connect();
@@ -457,7 +396,7 @@ void Connection::pump() {
         return;  // recv will block
 
     unsigned char buf[2048];
-    int           a = recv(m_Sock, (char*)buf, sizeof(buf), 0);
+    int           a = recv(m_Sock, reinterpret_cast<char*>(buf), sizeof(buf), 0);
     if (a < 0)
         BailOnSocketError("recv()");
 
@@ -506,19 +445,6 @@ void Connection::pump() {
 //---------------------------------------------------------------------
 
 
-Response::Response(const char* method, Connection& conn)
-    : m_Connection(conn),
-      m_State(STATUSLINE),
-      m_Method(method),
-      m_Version(0),
-      m_Status(0),
-      m_BytesRead(0),
-      m_Chunked(false),
-      m_ChunkLeft(0),
-      m_Length(-1),
-      m_WillClose(false) {}
-
-
 const char* Response::getheader(const char* name) const {
     std::string lname(name);
 #ifdef _MSC_VER
@@ -533,21 +459,6 @@ const char* Response::getheader(const char* name) const {
     else
         return it->second.c_str();
 }
-
-
-int Response::getstatus() const {
-    // only valid once we've got the statusline
-    assert(m_State != STATUSLINE);
-    return m_Status;
-}
-
-
-const char* Response::getreason() const {
-    // only valid once we've got the statusline
-    assert(m_State != STATUSLINE);
-    return m_Reason.c_str();
-}
-
 
 
 // Connection has closed
@@ -574,7 +485,7 @@ int Response::pump(const unsigned char* data, int datasize) {
             m_State == CHUNKLEN || m_State == CHUNKEND) {
             // we want to accumulate a line
             while (count > 0) {
-                char c = (char)*data++;
+                char c = static_cast<char>(*data++);
                 --count;
                 if (c == '\n') {
                     // now got a whole line!
@@ -648,7 +559,7 @@ int Response::ProcessDataChunked(const unsigned char* data, int count) {
 
     // invoke callback to pass out the data
     if (m_Connection.m_ResponseDataCB)
-        (m_Connection.m_ResponseDataCB)(this, m_Connection.m_UserData, data, n);
+        (m_Connection.m_ResponseDataCB)(this, data, n);
 
     m_BytesRead += n;
 
@@ -674,7 +585,7 @@ int Response::ProcessDataNonChunked(const unsigned char* data, int count) {
 
     // invoke callback to pass out the data
     if (m_Connection.m_ResponseDataCB)
-        (m_Connection.m_ResponseDataCB)(this, m_Connection.m_UserData, data, n);
+        (m_Connection.m_ResponseDataCB)(this, data, n);
 
     m_BytesRead += n;
 
@@ -691,7 +602,7 @@ void Response::Finish() {
 
     // invoke the callback
     if (m_Connection.m_ResponseCompleteCB)
-        (m_Connection.m_ResponseCompleteCB)(this, m_Connection.m_UserData);
+        (m_Connection.m_ResponseCompleteCB)(this);
 }
 
 
@@ -735,7 +646,7 @@ void Response::ProcessStatusLine(std::string const& line) {
         m_Version = 11;
     else
         throw Wobbly("UnknownProtocol (%s)", m_VersionString.c_str());
-    // TODO: support for HTTP/0.9
+    // TODO(toge): support for HTTP/0.9
 
 
     // OK, now we expect headers!
@@ -767,7 +678,6 @@ void Response::FlushHeader() {
     value = p;  // rest of line is value
 
     m_Headers[header] = value;
-    //	printf("header: ['%s': '%s']\n", header.c_str(), value.c_str() );
 
     m_HeaderAccum.clear();
 }
@@ -803,17 +713,6 @@ void Response::ProcessHeaderLine(std::string const& line) {
 }
 
 
-void Response::ProcessTrailerLine(std::string const& line) {
-    // TODO: handle trailers?
-    // (python httplib doesn't seem to!)
-    if (line.empty())
-        Finish();
-
-    // just ignore all the trailers...
-}
-
-
-
 // OK, we've now got all the headers read in, so we're ready to start
 // on the body. But we need to see what info we can glean from the headers
 // first...
@@ -845,26 +744,15 @@ void Response::BeginBody() {
         m_Length = 0;
     }
 
-
     // if we're not using chunked mode, and no length has been specified,
     // assume connection will close at end.
     if (!m_WillClose && !m_Chunked && m_Length == -1)
         m_WillClose = true;
 
-
-
     // Invoke the user callback, if any
     if (m_Connection.m_ResponseBeginCB)
-        (m_Connection.m_ResponseBeginCB)(this, m_Connection.m_UserData);
+        (m_Connection.m_ResponseBeginCB)(this);
 
-    /*
-            printf("---------BeginBody()--------\n");
-            printf("Length: %d\n", m_Length );
-            printf("WillClose: %d\n", (int)m_WillClose );
-            printf("Chunked: %d\n", (int)m_Chunked );
-            printf("ChunkLeft: %d\n", (int)m_ChunkLeft );
-            printf("----------------------------\n");
-    */
     // now start reading body data!
     if (m_Chunked)
         m_State = CHUNKLEN;
@@ -890,7 +778,7 @@ bool Response::CheckClose() {
     if (getheader("keep-alive"))
         return false;
 
-    // TODO: some special case handling for Akamai and netscape maybe?
+    // TODO(toge): some special case handling for Akamai and netscape maybe?
     // (see _check_close() in python httplib.py for details)
 
     return true;
@@ -899,3 +787,5 @@ bool Response::CheckClose() {
 
 
 }  // end namespace happyhttp
+
+#endif  // HAPPYHTTP_HAPPYHTP_CPP_

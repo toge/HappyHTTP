@@ -20,7 +20,7 @@ OBJS = test.cpp
 
 
 $(EXE): $(OBJS)
-	$(CXX) -o $@ $(OBJS) $(LDFLAGS)
+	$(CXX) -Wall -o $@ $(OBJS) $(LDFLAGS)
 
 
 clean:
