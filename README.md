@@ -2,8 +2,19 @@ HappyHTTP
 =========
 
 *a simple HTTP library*
- 
+
  Fork of [http://www.scumways.com/happyhttp/happyhttp.html](http://www.scumways.com/happyhttp/happyhttp.html)
+
+
+(in Japanese)
+HappyHTTPライブラリを今風に使いやすくしようという試み。
+当面は以下をやろうと思います。
+
+-   Proxy support
+-   HTTPS support
+-   header only libary
+-   Write some test codes
+
 
 Contents
 --------
@@ -91,7 +102,7 @@ callbacks will be invoked.
  `headers` - array of name/value pairs, terminated by a null-ptr
  `body, bodysize` - specify body data of request (eg values for a form)
 
-**`void putrequest( const char* method, const char* url )`** 
+**`void putrequest( const char* method, const char* url )`**
  (part of low-level request interface)
  Begin a request
  method is "GET", "POST" etc...
@@ -107,7 +118,7 @@ callbacks will be invoked.
  Indicate that your are finished adding headers and the request can be
 issued.
 
-`void send( const unsigned char* buf, int numbytes )` 
+`void send( const unsigned char* buf, int numbytes )`
  (part of low-level request interface)
  send body data if any. To be called after endheaders()
 
