@@ -70,10 +70,10 @@ const char* GetWinsockErrorString(int err);
 
 void BailOnSocketError(const char* context) {
 #ifdef WIN32
-    int         e   = WSAGetLastError();
-    const char* msg = GetWinsockErrorString(e);
+    int         e   = ::WSAGetLastError();
+    const char* msg = ::GetWinsockErrorString(e);
 #else
-    const char* msg = strerror(errno);
+    const char* msg = std::strerror(errno);
 #endif
     throw Wobbly("%s: %s", context, msg);
 }
@@ -201,7 +201,7 @@ bool datawaiting(int sock) {
     tv.tv_sec  = 0;
     tv.tv_usec = 0;
 
-    int r = select(sock + 1, &fds, NULL, NULL, &tv);
+    int r = ::select(sock + 1, &fds, NULL, NULL, &tv);
     if (r < 0)
         BailOnSocketError("select");
 
@@ -214,29 +214,20 @@ bool datawaiting(int sock) {
 
 // Try to work out address from string
 // returns 0 if bad
-struct in_addr* atoaddr(const char* address) {
-    struct hostent*       host;
-    static struct in_addr saddr;
+in_addr* atoaddr(const char* address) {
+    static struct in_addr saddr {};
 
     // First try nnn.nnn.nnn.nnn form
-    saddr.s_addr = inet_addr(address);
+    saddr.s_addr = ::inet_addr(address);
     if (saddr.s_addr != static_cast<decltype(saddr.s_addr)>(-1))
         return &saddr;
 
-    host = gethostbyname(address);
+    struct hostent* host = ::gethostbyname(address);
     if (host)
-        return (struct in_addr*)*host->h_addr_list;
+        return reinterpret_cast<in_addr*>(*host->h_addr_list);
 
-    return 0;
+    return nullptr;
 }
-
-
-
-
-
-
-
-
 
 
 //---------------------------------------------------------------------
@@ -245,20 +236,17 @@ struct in_addr* atoaddr(const char* address) {
 //
 //---------------------------------------------------------------------
 
-
-
 void Connection::connect() {
     in_addr* addr = atoaddr(m_Host.c_str());
     if (!addr)
         throw Wobbly("Invalid network address");
 
-    sockaddr_in address;
-    std::memset(reinterpret_cast<char*>(&address), 0, sizeof(address));
+    sockaddr_in address{};
     address.sin_family      = AF_INET;
-    address.sin_port        = htons(m_Port);
+    address.sin_port        = ::htons(m_Port);
     address.sin_addr.s_addr = addr->s_addr;
 
-    m_Sock = socket(AF_INET, SOCK_STREAM, 0);
+    m_Sock = ::socket(AF_INET, SOCK_STREAM, 0);
     if (m_Sock < 0)
         BailOnSocketError("socket()");
 
@@ -284,6 +272,16 @@ void Connection::close() {
     }
 }
 
+/*!
+ * \brief HTTPリクエストを送信する
+ *
+ * \param[in] method POST/GET/HEAD?
+ * \param[in] url REQUEST url (ex. /index.html)
+ * \param[in] headers key value が交互に並ぶ文字列の配列 null終端
+ * \param[in] body リクエストに付与する情報
+ * \param[in] bodysize リクエストのサイズ
+ *
+ */
 void Connection::request(const char* method, const char* url, const char* headers[],
                          const unsigned char* body, int bodysize) {
 
@@ -317,6 +315,7 @@ void Connection::request(const char* method, const char* url, const char* header
             putheader(name, value);
         }
     }
+
     endheaders();
 
     if (body)
@@ -327,19 +326,15 @@ void Connection::request(const char* method, const char* url, const char* header
 
 
 void Connection::putrequest(const char* method, const char* url) {
-    if (m_State != IDLE)
+    if (m_State != State::IDLE)
         throw Wobbly("Request already issued");
 
-    m_State = REQ_STARTED;
+    m_State = State::REQ_STARTED;
 
-    char req[512];
-    std::snprintf(req, sizeof(req), "%s %s HTTP/1.1", method, url);
-    m_Buffer.push_back(req);
+    m_Buffer.push_back(std::string(method) + " " + url + " HTTP/1.1");
 
-    putheader("Host", m_Host.c_str());  // required for HTTP1.1
-
-    // don't want any fancy encodings please
-    putheader("Accept-Encoding", "identity");
+    putheader("Host", m_Host);                 // required for HTTP1.1
+    putheader("Accept-Encoding", "identity");  // don't want any fancy encodings please
 
     // Push a new response onto the queue
     Response* r = new Response(method, *this);
@@ -362,7 +357,7 @@ void Connection::endheaders() {
 
     m_Buffer.clear();
 
-    send((const unsigned char*)msg.c_str(), msg.size());
+    send(reinterpret_cast<const unsigned char*>(msg.c_str()), msg.size());
 }
 
 
@@ -396,7 +391,8 @@ void Connection::pump() {
         return;  // recv will block
 
     unsigned char buf[2048];
-    int           a = recv(m_Sock, reinterpret_cast<char*>(buf), sizeof(buf), 0);
+
+    int a = recv(m_Sock, reinterpret_cast<char*>(buf), sizeof(buf), 0);
     if (a < 0)
         BailOnSocketError("recv()");
 
@@ -453,27 +449,11 @@ const char* Response::getheader(const char* name) const {
     std::transform(lname.begin(), lname.end(), lname.begin(), ::tolower);
 #endif
 
-    std::map<std::string, std::string>::const_iterator it = m_Headers.find(lname);
+    auto it = m_Headers.find(lname);
     if (it == m_Headers.end())
         return 0;
-    else
-        return it->second.c_str();
+    return it->second.c_str();
 }
-
-
-// Connection has closed
-void Response::notifyconnectionclosed() {
-    if (m_State == COMPLETE)
-        return;
-
-    // eof can be valid...
-    if (m_State == BODY && !m_Chunked && m_Length == -1) {
-        Finish();  // we're all done!
-    } else {
-        throw Wobbly("Connection closed unexpectedly");
-    }
-}
-
 
 
 int Response::pump(const unsigned char* data, int datasize) {

@@ -3,10 +3,6 @@
 
 #include "happyhttp.h"
 
-#ifdef WIN32
-#include <winsock2.h>
-#endif  // WIN32
-
 int receiveCount = 0;
 
 void OnBegin(const happyhttp::Response* r) {
@@ -23,13 +19,18 @@ void OnComplete(const happyhttp::Response* r) {
     printf("COMPLETE (%d bytes)\n", receiveCount);
 }
 
+auto OnBegin2 = [](const happyhttp::Response* r) {
+    printf("BEGIN (%d %s)\n", r->getstatus(), r->getreason());
+    receiveCount = 0;
+};
+
 
 
 void Test1() {
     puts("-----------------Test1------------------------");
     // simple simple GET
     happyhttp::Connection conn("scumways.com", 80);
-    conn.setcallbacks(OnBegin, OnData, OnComplete);
+    conn.setcallbacks(OnBegin2, OnData, OnComplete);
 
     conn.request("GET", "/happyhttp/test.php", 0, 0, 0);
 
@@ -83,27 +84,18 @@ void Test3() {
 
 
 int main(int argc, char* argv[]) {
-#ifdef WIN32
-    WSAData wsaData;
-    int     code = WSAStartup(MAKEWORD(1, 1), &wsaData);
-    if (code != 0) {
-        fprintf(stderr, "shite. %d\n", code);
-        return 0;
-    }
-#endif  // WIN32
+    happyhttp::initialize();
+
     try {
         Test1();
         Test2();
         Test3();
-    }
-
-    catch (happyhttp::Wobbly& e) {
+    } catch (happyhttp::Wobbly& e) {
         fprintf(stderr, "Exception:\n%s\n", e.what());
     }
 
-#ifdef WIN32
-    WSACleanup();
-#endif  // WIN32
+
+    happyhttp::finalize();
 
     return 0;
 }

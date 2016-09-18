@@ -35,16 +35,17 @@
 #include <string>
 #include <vector>
 
+#ifdef WIN32
+#include <winsock2.h>
+#endif  // WIN32
+
+
 // forward decl
 struct in_addr;
 
 namespace happyhttp {
 
 class Response;
-
-typedef std::function<void(const Response*)> ResponseBegin_CB;
-typedef std::function<void(const Response*, const unsigned char*, int)> ResponseData_CB;
-typedef std::function<void(const Response*)> ResponseComplete_CB;
 
 // Helper Functions
 void BailOnSocketError(const char* context);
@@ -134,6 +135,26 @@ protected:
 };
 
 
+inline bool initialize() {
+#ifdef WIN32
+    WSAData wsaData;
+    int     code = WSAStartup(MAKEWORD(1, 1), &wsaData);
+    if (code != 0) {
+        fprintf(stderr, "shite. %d\n", code);
+        return false;
+    }
+#endif  // WIN32
+    return true;
+}
+
+inline bool finalize() {
+#ifdef WIN32
+    WSACleanup();
+#endif  // WIN32
+
+    return true;
+}
+
 
 //-------------------------------------------------
 // Connection
@@ -144,14 +165,16 @@ protected:
 
 class Connection {
     friend class Response;
-
-private:
-    enum { IDLE, REQ_STARTED, REQ_SENT } m_State;
+    typedef std::function<void(const Response*)> ResponseBegin_CB;
+    typedef std::function<void(const Response*, const unsigned char*, int)> ResponseData_CB;
+    typedef std::function<void(const Response*)> ResponseComplete_CB;
 
 public:
     // doesn't connect immediately
     Connection(const char* host, int port)
         : m_State(IDLE), m_Host(host), m_Port(port), m_Sock(-1) {}
+
+    Connection(const Connection&) = delete;
 
     ~Connection() { close(); }
 
@@ -192,8 +215,8 @@ public:
     // url is only path part: eg  "/index.html"
     // headers is array of name/value pairs, terminated by a null-ptr
     // body & bodysize specify body data of request (eg values for a form)
-    void request(const char* method, const char* url, const char* headers[] = 0,
-                 const unsigned char* body = 0, int bodysize = 0);
+    void request(const char* method, const char* url, const char* headers[] = nullptr,
+                 const unsigned char* body = nullptr, int bodysize = 0);
 
     // ---------------------------
     // low-level request interface
@@ -206,9 +229,16 @@ public:
 
     // Add a header to the request (call after putrequest() )
     void putheader(const char* header, const char* value) {
-        if (m_State != REQ_STARTED)
+        if (m_State != State::REQ_STARTED)
             throw Wobbly("putheader() failed");
         m_Buffer.push_back(std::string(header) + ": " + std::string(value));
+    }
+
+    // Add a header to the request (call after putrequest() )
+    void putheader(const char* header, const std::string& value) {
+        if (m_State != State::REQ_STARTED)
+            throw Wobbly("putheader() failed");
+        m_Buffer.push_back(std::string(header) + ": " + value);
     }
 
     void putheader(const char* header, int numericvalue) {
@@ -233,6 +263,7 @@ protected:
     ResponseComplete_CB m_ResponseCompleteCB;
 
 private:
+    enum State { IDLE, REQ_STARTED, REQ_SENT } m_State;
     std::string              m_Host;
     int                      m_Port;
     int                      m_Sock;
@@ -311,7 +342,17 @@ protected:
     int pump(const unsigned char* data, int datasize);
 
     // tell response that connection has closed
-    void notifyconnectionclosed();
+    void notifyconnectionclosed() {
+        if (m_State == COMPLETE)
+            return;
+
+        // eof can be valid...
+        if (m_State == BODY && !m_Chunked && m_Length == -1) {
+            Finish();  // we're all done!
+        } else {
+            throw Wobbly("Connection closed unexpectedly");
+        }
+    }
 
 private:
     Connection& m_Connection;  // to access callback ptrs
